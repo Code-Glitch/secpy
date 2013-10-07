@@ -11,9 +11,8 @@ import datetime
 import time
 from PIL import Image
 import math, operator
-
-# pro-tip : to start an HTTP server:
-# python -m SimpleHTTPServer 8080
+from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
+import threading
 
 # use RAM-backed temporary file store location - to reduce writes to the SD card
 tmp_file = '/dev/shm/secpy.jpg'
@@ -73,9 +72,81 @@ def compare(file1, file2):
     rms = math.sqrt(reduce(operator.add,map(lambda a,b: (a-b)**2, h1, h2))/len(h1))
     return rms
 
+class HTTPThread(threading.Thread):
+    def run(self):
+        log.debug('Starting HTTP server on port : ' + config.get('server', 'port'))
+        server = HTTPServer(("", config.getint('server', 'port')), SecpyHttpHandler)
+        server.serve_forever()
+
+class SecpyHttpHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        # see http://www.acmesystems.it/python_httpserver
+
+        if self.path=="/":
+            self.send_response(200)
+            self.send_header('Content-type','text/html')
+            self.end_headers()
+            self.wfile.write("""<!DOCTYPE html>
+                                <html>
+                                    <head>
+                                        <title>Raspberry Pi Security System 1.0</title>
+                                    </head>
+                                    <body>""")
+
+            # spen through all the files in the images folder and add links to them
+            self.wfile.write("Still shots:\n")
+            dest_dir = config.get('image_properties', 'destination_folder')
+            dir_list=os.listdir(dest_dir)
+            dir_list.sort(reverse=True)
+            for fname in dir_list:
+                self.wfile.write('<p><a href="' + dest_dir + os.sep + fname + '">' + fname + '</a></p>\n')
+
+            self.wfile.write("""    </body>
+                                </html>""")
+
+            return
+
+        try:
+            send_reply = False
+            print "JIMBO : " + self.path
+
+            if self.path.endswith(".html"):
+                mimetype='text/html'
+                send_reply = True
+            if self.path.endswith(".jpg"):
+                mimetype='image/jpg'
+                send_reply = True
+            if self.path.endswith(".gif"):
+                mimetype='image/gif'
+                send_reply = True
+            if self.path.endswith(".js"):
+                mimetype='application/javascript'
+                send_reply = True
+            if self.path.endswith(".css"):
+                mimetype='text/css'
+                send_reply = True
+
+            if send_reply == True:
+                #Open the static file requested and send it
+                f = open(os.curdir + os.sep + self.path) 
+                self.send_response(200)
+                self.send_header('Content-type',mimetype)
+                self.end_headers()
+                self.wfile.write(f.read())
+                f.close()
+            return
+
+        except IOError:
+            self.send_error(404,'File Not Found: %s' % self.path)
+
 
 if __name__ == '__main__':
     log.debug("Starting secpy")
+
+    # fire up the HTTP server?
+    if config.getboolean('server', 'server_enable') is True:
+        HTTPThread().start()
+
     while True:
         capture()
 
