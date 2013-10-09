@@ -145,7 +145,9 @@ if __name__ == '__main__':
 
     # fire up the HTTP server?
     if config.getboolean('server', 'server_enable') is True:
-        HTTPThread().start()
+        http_thread = HTTPThread()
+        http_thread.daemon = True
+        http_thread.start()
 
     while True:
         capture()
