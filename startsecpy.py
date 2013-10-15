@@ -9,7 +9,7 @@ import logging
 import sys
 import datetime
 import time
-from PIL import Image
+from PIL import Image, ImageChops, ImageOps, ImageStat
 import math, operator
 from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
 import threading
@@ -36,10 +36,12 @@ config.read('secpy.cfg')
 last_filename = tmp_file 
 first_run = True
 
+debug_last_motion_value = 0.0
+
 #def capture(schedular):
 def capture():
     try:
-        subprocess.call(["raspistill", "-o", tmp_file, "-w", config.get('image_properties', 'width'), "-h", config.get('image_properties', 'height')])
+        subprocess.call(["raspistill", "-o", tmp_file, "-t", config.get('image_properties', 'exposure_time'), "-w", config.get('image_properties', 'width'), "-h", config.get('image_properties', 'height')])
     except OSError as e:
         if e.errno == os.errno.ENOENT:
             # raspstill doesn't exist - so warn the user that it's required
@@ -50,9 +52,13 @@ def capture():
 
     # compare the currently taken image with the last image, and see if there is a enough difference to bother storing it
     global last_filename, first_run
-    diff = compare(last_filename, tmp_file)  
+    diff = compare2(last_filename, tmp_file)  
     print('Diff = ' + str(diff))
-    if diff > 900.0 or first_run is True:
+    
+    global debug_last_motion_value
+    debug_last_motion_value = diff
+    
+    if diff > config.getfloat('image_properties', 'motion_threshold' ) or first_run is True:
         first_run = False
         log.debug('Change happened!')
         # create a filename using the current time and date
@@ -71,6 +77,20 @@ def compare(file1, file2):
     h2 = image2.histogram()
     rms = math.sqrt(reduce(operator.add,map(lambda a,b: (a-b)**2, h1, h2))/len(h1))
     return rms
+
+def compare2(file1, file2):
+    image1 = Image.open(file1)
+    image2 = Image.open(file2)
+
+    # 1) get the difference between the two images
+    # 2) convert the resulting image into greyscale
+    # 3) find the medium value of the grey pixels
+    # 4) if over a certain threshold, then we have movement
+
+    image_diff = ImageChops.difference(image1, image2)
+    image_diff = ImageOps.grayscale(image_diff)
+    image_stat = ImageStat.Stat(image_diff)
+    return image_stat.mean[0]
 
 class HTTPThread(threading.Thread):
     def run(self):
@@ -93,8 +113,9 @@ class SecpyHttpHandler(BaseHTTPRequestHandler):
                                     </head>
                                     <body>""")
 
-            # spen through all the files in the images folder and add links to them
-            self.wfile.write("Still shots:\n")
+            # spin through all the files in the images folder and add links to them
+            self.wfile.write("<p>Last motion-detection value = " + str(debug_last_motion_value) + "</p>\n")
+            self.wfile.write("<p>Motion history:</p>\n")
             dest_dir = config.get('image_properties', 'destination_folder')
             dir_list=os.listdir(dest_dir)
             dir_list.sort(reverse=True)
