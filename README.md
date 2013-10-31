@@ -5,6 +5,13 @@ Security camera software for Raspberry Pi Camera Module.
 
 This software enables Raspberry Pi hardware to take snapshots from the Pi Camera Module and work out if a significant change has occured from the last still-image, and store the image as JPG (with date/time etc).
 
+Features
+========
+* Supports the official RaspberryPi Camera Module.
+* Measures changes in image and takes a high-resolution snapshot which is only stored if the change is large enough - this saves on storage requirements.
+* Web-based frontend with password protection.
+* Various options to control image quality.
+
 Installing
 ==========
 

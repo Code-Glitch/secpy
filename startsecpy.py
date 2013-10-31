@@ -144,8 +144,7 @@ def ensure_free_space(path, free_space_bytes):
             file_list.append((os.stat(full_fname).st_mtime, full_fname))
 
     # reverse-sort by modified date
-    file_list.sort(key=lambda a: a[0])
-    file_list.reverse()
+    file_list.sort(key=lambda a: a[0], reverse = True)
 
     # while we don't have enough space...
     while True:
@@ -236,7 +235,11 @@ class SecpyHttpHandler(BaseHTTPRequestHandler):
                 # force a shot to be taken and stored
                 force_shot = True
 
-
+            self.send_response(302)
+            self.send_header('Location','/')
+            self.end_headers()
+            return
+        
         try:
             send_reply = False
 
@@ -275,17 +278,21 @@ class SecpyHttpHandler(BaseHTTPRequestHandler):
                                         </head>
                                         <body>""")
 
-                # spin through all the files in the images folder and add links to them
                 if recording_enabled:
                     self.wfile.write("<p><a href='?enable_recording=False'>Disable recording</a></p>\n")
                 else:
                     self.wfile.write("<p><a href='?enable_recording=True'>Enable recording</a></p>\n")
                 self.wfile.write("<p><a href='?force_shot=True'>Force shot</a> (forces a picture to be taken and saved)</p>\n")
                 self.wfile.write("<p>Last motion-detection value = " + str(debug_last_motion_value) + "</p>\n")
-                self.wfile.write("<p>Motion history:</p>\n")
                 dest_dir = config.get('image_properties', 'destination_folder')
+                
+                # spin through all the files in the images folder and add links to them
                 dir_list=os.listdir(dest_dir)
                 dir_list.sort(reverse=True)
+                if len(dir_list) > 0:
+                    # show preview of latest image
+                    self.wfile.write("<p><img src='" + dir_list[0]  + "' width=640 height=480></p>\n")
+                self.wfile.write("<p>Motion history:</p>\n")
                 for fname in dir_list:
                     self.wfile.write('<p><a href="' + fname + '">' + fname + '</a></p>\n')
 
